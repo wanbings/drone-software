@@ -19,8 +19,8 @@
 // This example will use I2C0 on GPIO8 (SDA) and GPIO9 (SCL) running at 400KHz.
 // Pins can be changed, see the GPIO function select table in the datasheet for information on GPIO assignments
 #define I2C_PORT i2c0
-#define I2C_SDA 8
-#define I2C_SCL 9
+#define I2C_SDA 6
+#define I2C_SCL 7
 
 // Data will be copied from src to dst
 const char src[] = "Hello, world! (from DMA)";
@@ -37,7 +37,11 @@ char dst[count_of(src)];
 #define UART_TX_PIN 4
 #define UART_RX_PIN 5
 
-
+// LED pins (in place of motors)
+#define MOT1_PIN 3
+#define MOT2_PIN 28
+#define MOT3_PIN 13
+#define MOT4_PIN 20
 
 int main()
 {
@@ -95,17 +99,17 @@ int main()
     puts(dst);
 
     // Watchdog example code
-    if (watchdog_caused_reboot()) {
-        printf("Rebooted by Watchdog!\n");
-        // Whatever action you may take if a watchdog caused a reboot
-    }
+    // if (watchdog_caused_reboot()) {
+    //     printf("Rebooted by Watchdog!\n");
+    //     // Whatever action you may take if a watchdog caused a reboot
+    // }
     
     // Enable the watchdog, requiring the watchdog to be updated every 100ms or the chip will reboot
     // second arg is pause on debug which means the watchdog will pause when stepping through code
-    watchdog_enable(100, 1);
+    //watchdog_enable(100, 1);
     
     // You need to call this function at least more often than the 100ms in the enable call to prevent a reboot
-    watchdog_update();
+    //watchdog_update();
 
     // Set up our UART
     uart_init(UART_ID, BAUD_RATE);
@@ -122,8 +126,25 @@ int main()
     
     // For more examples of UART use see https://github.com/raspberrypi/pico-examples/tree/master/uart
 
+    gpio_init(MOT1_PIN);
+    gpio_init(MOT2_PIN);
+    gpio_init(MOT3_PIN);
+    gpio_init(MOT4_PIN);
+    gpio_set_dir(MOT1_PIN, GPIO_OUT);
+    gpio_set_dir(MOT2_PIN, GPIO_OUT);
+    gpio_set_dir(MOT3_PIN, GPIO_OUT);
+    gpio_set_dir(MOT4_PIN, GPIO_OUT);
+    
     while (true) {
-        printf("Hello, world!\n");
+        gpio_put(MOT1_PIN, 1);
+        gpio_put(MOT2_PIN, 1);
+        gpio_put(MOT3_PIN, 1);
+        gpio_put(MOT4_PIN, 1);
+        sleep_ms(1000);
+        gpio_put(MOT1_PIN, 0);
+        gpio_put(MOT2_PIN, 0);
+        gpio_put(MOT3_PIN, 0);
+        gpio_put(MOT4_PIN, 0);
         sleep_ms(1000);
     }
 }
