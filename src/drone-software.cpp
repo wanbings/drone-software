@@ -1,10 +1,12 @@
 #include <stdio.h>
+#include <cstdint>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
 #include "hardware/i2c.h"
 #include "hardware/dma.h"
 #include "hardware/watchdog.h"
 #include "hardware/uart.h"
+#include "LED.h"
 
 // SPI Defines
 // We are going to use SPI 0, and allocate it to the following GPIO pins
@@ -45,72 +47,45 @@
 #define SAMPLE_RATE_DIV 1
 
 #define I2C_TIMEOUT 50000
-bool mpu_reset() {
-    uint8_t reset[] = {REG_PWR_MGMT_1, 0x80};
 
-    int result = i2c_write_timeout_per_char_us(I2C_PORT, MPU6050_ADDR, reset, 2, false, 50000);
-    if (result < 0) return false; //failed to communicate safely
-
-    //i2c_write_blocking(I2C_PORT, MPU6050_ADDR, reset, 2, false);
+void mpu6050_reset() {
+    std::uint8_t reset[] = {REG_PWR_MGMT_1, 0x80};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, reset, 2, false);
     sleep_ms(200);
-    uint8_t wake[] = {REG_PWR_MGMT_1, 0x00};
-    //i2c_write_blocking(I2C_PORT, MPU6050_ADDR, wake, 2, false);
-    //sleep_ms(200);
-
-    result = i2c_write_timeout_per_char_us(I2C_PORT, MPU6050_ADDR, wake, 2, false, 50000);
-    return (result >= 0);
-}
-bool mpu6050_configure() {
-    uint8_t accel_config[] = {REG_ACCEL_CONFIG, ACCEL_CONFIG_VALUE};
-    if (i2c_write_timeout_per_char_us(I2C_PORT, MPU6050_ADDR, accel_config, 2, false, I2C_TIMEOUT) < 0) return false;
-
-    uint8_t gyro_config[] = {REG_GYRO_CONFIG, GYRO_CONFIG_VALUE};
-    if (i2c_write_timeout_per_char_us(I2C_PORT, MPU6050_ADDR, gyro_config, 2, false, I2C_TIMEOUT) < 0) return false;
-
-    uint8_t sample_rate[] = {REG_SMPLR_DIV, SAMPLE_RATE_DIV};
-    if (i2c_write_timeout_per_char_us(I2C_PORT, MPU6050_ADDR, sample_rate, 2, false, I2C_TIMEOUT) < 0) return false;
-
-    return true;
+    std::uint8_t wake[] = {REG_PWR_MGMT_1, 0x00};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, wake, 2, false);
+    sleep_ms(200);
 }
 
-// void mpu_read_raw(int16_t accel[3], int16_t gyro[3], int16_t *temp) {
-//     uint8_t buffer[14];
-//     uint8_t reg = REG_ACCEL_XOUT_H;
-//     i2c_write_blocking(I2C_PORT, MPU6050_ADDR, &reg, 1, true);
-//     i2c_read_blocking(I2C_PORT, MPU6050_ADDR, buffer, 14, false);
+void mpu6050_configure() {
+    std::uint8_t accel_config[] = {REG_ACCEL_CONFIG, ACCEL_CONFIG_VALUE};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, accel_config, 2, false);
 
-//     accel[0] = (buffer[0] << 8) | buffer[1];
-//     accel[1] = (buffer[2] << 8) | buffer[3];
-//     accel[2] = (buffer[4] << 8) | buffer[5];
-//     *temp = (buffer[6] << 8) | buffer[7];
-//     gyro[0] = (buffer[8] << 8) | buffer[9];
-//     gyro[1] = (buffer[10] << 8) | buffer[11];
-//     gyro[2] = (buffer[12] << 8) | buffer[13];
-// }
-// Data will be copied from src to dst
-const char src[] = "Hello, world! (from DMA)";
-char dst[count_of(src)];
+    std::uint8_t gyro_config[] = {REG_GYRO_CONFIG, GYRO_CONFIG_VALUE};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, gyro_config, 2, false);
 
-bool mpu_read_raw(int16_t accel[3], int16_t gyro[3], int16_t *temp) {
-    uint8_t buffer[14];
-    uint8_t reg = REG_ACCEL_XOUT_H;
-    
-    int w_res = i2c_write_timeout_per_char_us(I2C_PORT, MPU6050_ADDR, &reg, 1, true, I2C_TIMEOUT);
-    int r_res = i2c_read_timeout_per_char_us(I2C_PORT, MPU6050_ADDR, buffer, 14, false, I2C_TIMEOUT);
+    std::uint8_t sample_rate[] = {REG_SMPLR_DIV, SAMPLE_RATE_DIV};
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, sample_rate, 2, false);
+}
 
-    if (w_res < 0 || r_res < 0) {
-        return false; // Communication failed, but did not hang!
-    }
+void mpu_read_raw(std::int16_t accel[3], std::int16_t gyro[3], std::int16_t *temp) {
+    std::uint8_t buffer[14];
+    std::uint8_t reg = REG_ACCEL_XOUT_H;
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, &reg, 1, true);
+    i2c_read_blocking(I2C_PORT, MPU6050_ADDR, buffer, 14, false);
 
     accel[0] = (buffer[0] << 8) | buffer[1];
     accel[1] = (buffer[2] << 8) | buffer[3];
     accel[2] = (buffer[4] << 8) | buffer[5];
-    *temp    = (buffer[6] << 8) | buffer[7];
-    gyro[0]  = (buffer[8] << 8) | buffer[9];
-    gyro[1]  = (buffer[10] << 8) | buffer[11];
-    gyro[2]  = (buffer[12] << 8) | buffer[13];
-    return true;
+    *temp = (buffer[6] << 8) | buffer[7];
+    gyro[0] = (buffer[8] << 8) | buffer[9];
+    gyro[1] = (buffer[10] << 8) | buffer[11];
+    gyro[2] = (buffer[12] << 8) | buffer[13];
 }
+// Data will be copied from src to dst
+const char src[] = "Hello, world! (from DMA)";
+char dst[count_of(src)];
+
 // UART defines
 // By default the stdout UART is `uart0`, so we will use the second one
 #define UART_ID uart1
@@ -126,7 +101,7 @@ bool mpu_read_raw(int16_t accel[3], int16_t gyro[3], int16_t *temp) {
 #define MOT2_PIN 28
 #define MOT3_PIN 13
 #define MOT4_PIN 20
-
+#define DELAY 500
 int main()
 {
     stdio_init_all();
@@ -145,8 +120,8 @@ int main()
     // gpio_put(PIN_CS, 1);
     // // For more examples of SPI use see https://github.com/raspberrypi/pico-examples/tree/master/spi
 
-    gpio_init(MOT1_PIN); gpio_init(MOT2_PIN); gpio_init(MOT3_PIN); gpio_init(MOT4_PIN);
-    gpio_set_dir(MOT1_PIN, GPIO_OUT); gpio_set_dir(MOT2_PIN, GPIO_OUT); gpio_set_dir(MOT3_PIN, GPIO_OUT); gpio_set_dir(MOT4_PIN, GPIO_OUT);
+    // gpio_init(MOT1_PIN); gpio_init(MOT2_PIN); gpio_init(MOT3_PIN); gpio_init(MOT4_PIN);
+    // gpio_set_dir(MOT1_PIN, GPIO_OUT); gpio_set_dir(MOT2_PIN, GPIO_OUT); gpio_set_dir(MOT3_PIN, GPIO_OUT); gpio_set_dir(MOT4_PIN, GPIO_OUT);
 
     // // I2C Initialisation. Using it at 400Khz.
     i2c_init(I2C_PORT, 400*1000);
@@ -159,66 +134,102 @@ int main()
     
 
     //reset and configure mpu6050
-    //mpu_reset();
-    //mpu6050_configure();
-    printf("Resetting MPU6050 \n");
-    if (!mpu_reset()) {
-        printf("Failed to reset MPU6050\n");
-    } else {
-        mpu6050_configure();
-
-        uint8_t who_am_i = 0;
-        uint8_t reg = WHO_AM_I_REG;
-        i2c_write_timeout_per_char_us(I2C_PORT, MPU6050_ADDR, &reg, 1, true, 50000);
-        i2c_read_timeout_per_char_us(I2C_PORT, MPU6050_ADDR, &who_am_i, 1, false, 50000);
-        printf("Who am I: 0x%02X\n", who_am_i);
+    mpu6050_reset();
+    mpu6050_configure();
+   
+    std::uint8_t who_am_i = 0;
+    std::uint8_t reg = WHO_AM_I_REG;
+    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, &reg, 1, true);
+    i2c_read_blocking(I2C_PORT, MPU6050_ADDR, &who_am_i, 1, false);
+    printf("Who am I: 0x%02X\n", who_am_i);
+    if (who_am_i != 0x68) {
+        printf("MPU6050 not found!\n");
+        while (1);
     }
-    //i2c_write_blocking(I2C_PORT, MPU6050_ADDR, &reg, 1, true);
-    //i2c_read_blocking(I2C_PORT, MPU6050_ADDR, &who_am_i, 1, false);
-    //printf("Who am I: 0x%02X\n", who_am_i);
-
-    // if (who_am_i != 0x68) {
-    //     printf("MPU6050 not found!\n");
-    //     while (1);
-    // }
     printf("Entering main loop. LEDs should now begin flashing...\n");
-    int16_t accel[3], gyro[3], temp;
-    bool led_state = false;
+    std::int16_t accel[3], gyro[3], temp;
+    
+    uint32_t start = to_ms_since_boot (get_absolute_time ());
+	uint32_t sinceStart;
+	uint32_t now;
+	std::uint8_t demo = 0;
+
+    LED led(MOT1_PIN);
+
+	led.setMode(LEDOn, 0xff);
 
 
     while (1) {
-         led_state = !led_state;
-        gpio_put(MOT1_PIN, led_state);
-        gpio_put(MOT2_PIN, led_state);
-        gpio_put(MOT3_PIN, led_state);
-        gpio_put(MOT4_PIN, led_state);
+        led.poll();
+
+		now = to_ms_since_boot (get_absolute_time ());
+		sinceStart = now - start;
+
+		if (sinceStart > 5000){
+			start = now;
+			demo++;
+			switch(demo){
+			case 1:{
+				printf("LEDOn\n");
+				led.setMode(LEDOn);
+				break;
+			}
+			case 2:{
+				printf("LEDOff\n");
+				led.setMode(LEDOff);
+				break;
+			}
+			case 3:{
+				printf("LEDFadeTo Full On\n");
+				led.setMode(LEDFadeTo, 0xff);
+				break;
+			}
+			case 4:{
+				printf("LEDFadeTo 50%\n");
+				led.setMode(LEDFadeTo, 0x80);
+				break;
+			}
+			case 6:{
+				printf("LEDFadeTo Off\n");
+				led.setMode(LEDFadeTo, 0x00);
+				break;
+			}
+			case 8:{
+				printf("LEDFade\n");
+				led.setMode(LEDFade);
+			}
+			case 20:{
+				demo = 0;
+			}
+			}
+		}
         
 
-        if(mpu_read_raw(accel, gyro, &temp)) {
+        // mpu_read_raw(accel, gyro, &temp);
         
-        //convert raw values to actual values
-        float accel_g[3];
-        accel_g[0] = (float)accel[0] / ACCEL_SCALE_FACTOR;
-        accel_g[1] = (float)accel[1] / ACCEL_SCALE_FACTOR;
-        accel_g[2] = (float)accel[2] / ACCEL_SCALE_FACTOR;
+        // //convert raw values to actual values
+        // float accel_g[3];
+        // accel_g[0] = (float)accel[0] / ACCEL_SCALE_FACTOR;
+        // accel_g[1] = (float)accel[1] / ACCEL_SCALE_FACTOR;
+        // accel_g[2] = (float)accel[2] / ACCEL_SCALE_FACTOR;
 
-        float gyro_dps[3];
-        gyro_dps[0] = (float)gyro[0] / GYRO_SCALE_FACTOR;
-        gyro_dps[1] = (float)gyro[1] / GYRO_SCALE_FACTOR;
-        gyro_dps[2] = (float)gyro[2] / GYRO_SCALE_FACTOR;
+        // float gyro_dps[3];
+        // gyro_dps[0] = (float)gyro[0] / GYRO_SCALE_FACTOR;
+        // gyro_dps[1] = (float)gyro[1] / GYRO_SCALE_FACTOR;
+        // gyro_dps[2] = (float)gyro[2] / GYRO_SCALE_FACTOR;
 
-        float temp_c = (float)temp / 340.0f + 36.53f;
+        // float temp_c = (float)temp / 340.0f + 36.53f;
 
-        printf("Accel: %.2f %.2f %.2f g, ", accel_g[0], accel_g[1], accel_g[2]);
-        printf("Gyro: %.2f %.2f %.2f deg/s, ", gyro_dps[0], gyro_dps[1], gyro_dps[2]);
-        printf("Temp: %.2f C\n", temp_c);
+        // printf("Accel: %.2f %.2f %.2f g, ", accel_g[0], accel_g[1], accel_g[2]);
+        // printf("Gyro: %.2f %.2f %.2f deg/s, ", gyro_dps[0], gyro_dps[1], gyro_dps[2]);
+        // printf("Temp: %.2f C\n", temp_c);
 
-        } else {
-            printf("Failed to read from MPU6050\n");
-        }
+        
     
-        sleep_ms(500);
+        // sleep_ms(500);
     }
+
+
     return 0;
 
 

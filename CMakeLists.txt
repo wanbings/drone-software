@@ -35,7 +35,12 @@ pico_sdk_init()
 
 # Add executable. Default name is the project name, version 0.1
 
-add_executable(drone-software drone-software.c )
+add_executable(drone-software src/drone-software.cpp
+    src/LED.cpp )
+
+target_sources(drone-software PRIVATE
+    src/LED.cpp
+)
 
 pico_set_program_name(drone-software "drone-software")
 pico_set_program_version(drone-software "0.1")
@@ -60,6 +65,7 @@ target_link_libraries(drone-software
         hardware_i2c
         hardware_dma
         hardware_watchdog
+        hardware_pwm
         )
 
 pico_add_extra_outputs(drone-software)
