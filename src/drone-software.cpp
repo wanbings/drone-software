@@ -1,13 +1,11 @@
 #include <stdio.h>
-#include <cstdint>
 #include "pico/stdlib.h"
 #include "hardware/spi.h"
-#include "hardware/i2c.h"
 #include "hardware/dma.h"
 #include "hardware/watchdog.h"
 #include "hardware/uart.h"
 #include "LED.h"
-
+#include "MPU6050.h"
 // SPI Defines
 // We are going to use SPI 0, and allocate it to the following GPIO pins
 // Pins can be changed, see the GPIO function select table in the datasheet for information on GPIO assignments
@@ -17,71 +15,7 @@
 #define PIN_SCK  18
 #define PIN_MOSI 19
 
-// I2C defines
-// This example will use I2C0 on GPIO8 (SDA) and GPIO9 (SCL) running at 400KHz.
-// Pins can be changed, see the GPIO function select table in the datasheet for information on GPIO assignments
-#define I2C_PORT i2c1
-#define I2C_SDA 6
-#define I2C_SCL 7
-#define MPU6050_ADDR 0x68
 
-// mpu6050 register addresses
-#define REG_PWR_MGMT_1 0x6B
-#define REG_GYRO_CONFIG 0x1B
-#define REG_ACCEL_CONFIG 0x1C
-#define REG_SMPLR_DIV 0x19
-#define WHO_AM_I_REG 0x75
-
-// mpu6050 data registers
-#define REG_ACCEL_XOUT_H 0x3B
-#define REG_ACCEL_YOUT_H 0x3D
-#define REG_ACCEL_ZOUT_H 0x3F
-#define REG_GYRO_XOUT_H 0x43
-#define REG_GYRO_YOUT_H 0x45
-#define REG_GYRO_ZOUT_H 0x47
-
-#define ACCEL_SCALE_FACTOR 8192.0
-#define GYRO_SCALE_FACTOR 131.0
-#define ACCEL_CONFIG_VALUE 0X08
-#define GYRO_CONFIG_VALUE 0X00
-#define SAMPLE_RATE_DIV 1
-
-#define I2C_TIMEOUT 50000
-
-void mpu6050_reset() {
-    std::uint8_t reset[] = {REG_PWR_MGMT_1, 0x80};
-    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, reset, 2, false);
-    sleep_ms(200);
-    std::uint8_t wake[] = {REG_PWR_MGMT_1, 0x00};
-    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, wake, 2, false);
-    sleep_ms(200);
-}
-
-void mpu6050_configure() {
-    std::uint8_t accel_config[] = {REG_ACCEL_CONFIG, ACCEL_CONFIG_VALUE};
-    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, accel_config, 2, false);
-
-    std::uint8_t gyro_config[] = {REG_GYRO_CONFIG, GYRO_CONFIG_VALUE};
-    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, gyro_config, 2, false);
-
-    std::uint8_t sample_rate[] = {REG_SMPLR_DIV, SAMPLE_RATE_DIV};
-    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, sample_rate, 2, false);
-}
-
-void mpu_read_raw(std::int16_t accel[3], std::int16_t gyro[3], std::int16_t *temp) {
-    std::uint8_t buffer[14];
-    std::uint8_t reg = REG_ACCEL_XOUT_H;
-    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, &reg, 1, true);
-    i2c_read_blocking(I2C_PORT, MPU6050_ADDR, buffer, 14, false);
-
-    accel[0] = (buffer[0] << 8) | buffer[1];
-    accel[1] = (buffer[2] << 8) | buffer[3];
-    accel[2] = (buffer[4] << 8) | buffer[5];
-    *temp = (buffer[6] << 8) | buffer[7];
-    gyro[0] = (buffer[8] << 8) | buffer[9];
-    gyro[1] = (buffer[10] << 8) | buffer[11];
-    gyro[2] = (buffer[12] << 8) | buffer[13];
-}
 // Data will be copied from src to dst
 const char src[] = "Hello, world! (from DMA)";
 char dst[count_of(src)];
@@ -102,12 +36,51 @@ char dst[count_of(src)];
 #define MOT3_PIN 13
 #define MOT4_PIN 20
 #define DELAY 500
+
+#define BRIGHTNESS_STEP 500
+#define MAX_BRIGHTNESS 10000
 int main()
 {
     stdio_init_all();
+    sleep_ms(2000); 
 
-    sleep_ms(3000); 
-    printf("\n=== Pico MPU6050 Diagnostic Start ===\n");
+    printf("Initializing peripherals...\n");
+    if (!mpu6050_init()) {
+        printf("ERROR: MPU6050 initialization failed!\n");
+        while (1);
+    }
+
+    LED motor1(MOT1_PIN, 5000);
+    motor1.init();
+
+    IMUData imu_data;
+    uint32_t last_print_time = to_ms_since_boot(get_absolute_time());
+
+    printf("Controls: Press 'u' to increase brightness, 'd' to decrease.\n");
+    printf("Starting main control loop...\n");
+    
+    while(1){
+        if(mpu6050_read(imu_data)){
+            //sensor data is updated in the background
+        }
+
+        int c = getchar_timeout_us(0);
+        if (c == 'u') {
+            motor1.increase();
+        } else if (c == 'd') {
+            motor1.decrease();
+        }
+
+        uint32_t current_time = to_ms_since_boot(get_absolute_time());
+        if (current_time - last_print_time >= 500) {
+            printf("Accel X: %6.2f g | Gyro X: %6.2f deg/s", 
+                   imu_data.accel_x, imu_data.gyro_x);
+            
+            
+            last_print_time = current_time;
+        }
+    }
+
     // // SPI initialisation. This example will use SPI at 1MHz.
     // spi_init(SPI_PORT, 1000*1000);
     // gpio_set_function(PIN_MISO, GPIO_FUNC_SPI);
@@ -123,111 +96,11 @@ int main()
     // gpio_init(MOT1_PIN); gpio_init(MOT2_PIN); gpio_init(MOT3_PIN); gpio_init(MOT4_PIN);
     // gpio_set_dir(MOT1_PIN, GPIO_OUT); gpio_set_dir(MOT2_PIN, GPIO_OUT); gpio_set_dir(MOT3_PIN, GPIO_OUT); gpio_set_dir(MOT4_PIN, GPIO_OUT);
 
-    // // I2C Initialisation. Using it at 400Khz.
-    i2c_init(I2C_PORT, 400*1000);
-    gpio_set_function(I2C_SDA, GPIO_FUNC_I2C);
-    gpio_set_function(I2C_SCL, GPIO_FUNC_I2C);
-    gpio_pull_up(I2C_SDA);
-    gpio_pull_up(I2C_SCL);
-    
-    sleep_ms(100);
-    
-
-    //reset and configure mpu6050
-    mpu6050_reset();
-    mpu6050_configure();
-   
-    std::uint8_t who_am_i = 0;
-    std::uint8_t reg = WHO_AM_I_REG;
-    i2c_write_blocking(I2C_PORT, MPU6050_ADDR, &reg, 1, true);
-    i2c_read_blocking(I2C_PORT, MPU6050_ADDR, &who_am_i, 1, false);
-    printf("Who am I: 0x%02X\n", who_am_i);
-    if (who_am_i != 0x68) {
-        printf("MPU6050 not found!\n");
-        while (1);
-    }
-    printf("Entering main loop. LEDs should now begin flashing...\n");
-    std::int16_t accel[3], gyro[3], temp;
-    
-    uint32_t start = to_ms_since_boot (get_absolute_time ());
-	uint32_t sinceStart;
-	uint32_t now;
-	std::uint8_t demo = 0;
-
-    LED led(MOT1_PIN);
-
-	led.setMode(LEDOn, 0xff);
 
 
-    while (1) {
-        led.poll();
-
-		now = to_ms_since_boot (get_absolute_time ());
-		sinceStart = now - start;
-
-		if (sinceStart > 5000){
-			start = now;
-			demo++;
-			switch(demo){
-			case 1:{
-				printf("LEDOn\n");
-				led.setMode(LEDOn);
-				break;
-			}
-			case 2:{
-				printf("LEDOff\n");
-				led.setMode(LEDOff);
-				break;
-			}
-			case 3:{
-				printf("LEDFadeTo Full On\n");
-				led.setMode(LEDFadeTo, 0xff);
-				break;
-			}
-			case 4:{
-				printf("LEDFadeTo 50%\n");
-				led.setMode(LEDFadeTo, 0x80);
-				break;
-			}
-			case 6:{
-				printf("LEDFadeTo Off\n");
-				led.setMode(LEDFadeTo, 0x00);
-				break;
-			}
-			case 8:{
-				printf("LEDFade\n");
-				led.setMode(LEDFade);
-			}
-			case 20:{
-				demo = 0;
-			}
-			}
-		}
+    // while (1) {
         
-
-        // mpu_read_raw(accel, gyro, &temp);
-        
-        // //convert raw values to actual values
-        // float accel_g[3];
-        // accel_g[0] = (float)accel[0] / ACCEL_SCALE_FACTOR;
-        // accel_g[1] = (float)accel[1] / ACCEL_SCALE_FACTOR;
-        // accel_g[2] = (float)accel[2] / ACCEL_SCALE_FACTOR;
-
-        // float gyro_dps[3];
-        // gyro_dps[0] = (float)gyro[0] / GYRO_SCALE_FACTOR;
-        // gyro_dps[1] = (float)gyro[1] / GYRO_SCALE_FACTOR;
-        // gyro_dps[2] = (float)gyro[2] / GYRO_SCALE_FACTOR;
-
-        // float temp_c = (float)temp / 340.0f + 36.53f;
-
-        // printf("Accel: %.2f %.2f %.2f g, ", accel_g[0], accel_g[1], accel_g[2]);
-        // printf("Gyro: %.2f %.2f %.2f deg/s, ", gyro_dps[0], gyro_dps[1], gyro_dps[2]);
-        // printf("Temp: %.2f C\n", temp_c);
-
-        
-    
-        // sleep_ms(500);
-    }
+    // }
 
 
     return 0;
