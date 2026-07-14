@@ -46,13 +46,13 @@ bool mpu6050_read(IMUData &data) {
     }
     i2c_read_blocking(I2C_PORT, MPU6050_ADDR, buffer, 14, false);
 
-    uint16_t raw_ax = (buffer[0] << 8) | buffer[1];
-    uint16_t raw_ay = (buffer[2] << 8) | buffer[3];
-    uint16_t raw_az = (buffer[4] << 8) | buffer[5];
-    uint16_t t = (buffer[6] << 8) | buffer[7];
-    uint16_t raw_gx  = (buffer[8] << 8) | buffer[9];
-    uint16_t raw_gy = (buffer[10] << 8) | buffer[11];
-    uint16_t raw_gz = (buffer[12] << 8) | buffer[13];
+    int16_t raw_ax = (int16_t)(buffer[0] << 8) | buffer[1];
+    int16_t raw_ay = (int16_t)(buffer[2] << 8) | buffer[3];
+    int16_t raw_az = (int16_t)(buffer[4] << 8) | buffer[5];
+    int16_t t      = (int16_t)(buffer[6] << 8) | buffer[7];
+    int16_t raw_gx = (int16_t)(buffer[8] << 8) | buffer[9];
+    int16_t raw_gy = (int16_t)(buffer[10] << 8) | buffer[11];
+    int16_t raw_gz = (int16_t)(buffer[12] << 8) | buffer[13];
 
     data.accel_x = (float)raw_ax / ACCEL_SCALE_FACTOR;
     data.accel_y = (float)raw_ay / ACCEL_SCALE_FACTOR;

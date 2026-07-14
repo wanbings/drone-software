@@ -40,6 +40,7 @@ add_executable(drone-software src/drone-software.cpp)
 target_sources(drone-software PRIVATE
     src/LED.cpp
     src/MPU6050.cpp
+    src/PID.cpp
 )
 
 pico_set_program_name(drone-software "drone-software")
